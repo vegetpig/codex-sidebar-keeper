@@ -134,6 +134,7 @@
     currentChatRetryStartedAt: 0,
     currentChatRetryAttempts: 0,
     userRouteNavigationUntil: 0,
+    newConversationUntil: 0,
     startupHoldUntil: 0,
     lastReason: "started",
     lastActionAt: 0,
@@ -218,6 +219,11 @@
     return String(raw).trim();
   }
 
+  function threadKeyFromUrl() {
+    const urlMatch = location.href.match(/(?:thread|conversation|chat)[=/]([^/?#&]+)/i);
+    return urlMatch?.[1] ? decodeURIComponent(urlMatch[1]) : "";
+  }
+
   function getCurrentThreadKey() {
     const selectedSelectors = [
       '[data-app-action-sidebar-thread-id][aria-current="page"]',
@@ -230,9 +236,9 @@
       const key = threadKeyFromElement(document.querySelector(selector));
       if (key) return key;
     }
+    const urlKey = threadKeyFromUrl();
+    if (urlKey) return urlKey;
     if (state.currentThreadKey) return state.currentThreadKey;
-    const urlMatch = location.href.match(/(?:thread|conversation|chat)[=/]([^/?#&]+)/i);
-    if (urlMatch?.[1]) return decodeURIComponent(urlMatch[1]);
     return "default";
   }
 
@@ -293,6 +299,19 @@
     state.lastReason = reason;
   }
 
+  function markNewConversationNavigation(reason = "user-new-conversation") {
+    markUserRouteNavigation(reason);
+    state.currentThreadKey = "";
+    state.lastCurrentChatRequestKey = "";
+    state.currentChatRetryActive = false;
+    state.currentChatRetryToken += 1;
+    state.newConversationUntil = Date.now() + 15000;
+  }
+
+  function isNewConversationContext() {
+    return Date.now() < state.newConversationUntil && !threadKeyFromUrl();
+  }
+
   function isNewConversationControl(element) {
     const action = element?.closest?.('button,[role="button"],a,[aria-label],[title]');
     if (!action || state.root?.contains(action)) return false;
@@ -315,7 +334,7 @@
       return true;
     }
     if (isNewConversationControl(event.target)) {
-      markUserRouteNavigation(`${reasonPrefix}-new-conversation`);
+      markNewConversationNavigation(`${reasonPrefix}-new-conversation`);
       return true;
     }
     return false;
@@ -1529,6 +1548,11 @@
     if (state.browserUrlMode !== "current" && state.browserUrl.trim()) {
       return requestCustomBrowserUrl(reason, options);
     }
+    if (isNewConversationContext()) {
+      state.currentChatRetryActive = false;
+      setStatus("新建对话中，仅打开浏览器", "ok");
+      return false;
+    }
 
     const now = Date.now();
     const requestKey = state.currentThreadKey || getCurrentThreadKey() || "current-chat";
@@ -1572,6 +1596,10 @@
   function ensureCurrentChatBrowserSite(reason = "browser-current-chat", options = {}) {
     const report = options.report !== false;
     if (state.targetTool !== "browser") return false;
+    if (isNewConversationContext()) {
+      if (report) setStatus("新建对话中，仅打开浏览器", "ok");
+      return false;
+    }
     if (!isRightPanelOpen()) {
       if (report) setStatus("等待右侧栏打开...", "busy");
       return false;
