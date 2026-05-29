@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="430" viewBox="0 0 960 430" role="img" aria-labelledby="title desc">
+  <title id="title">Browser URL selection flow</title>
+  <desc id="desc">The first browser open uses the current chat fallback, then remembers the selected page.</desc>
+  <rect width="960" height="430" rx="20" fill="#f8fafc"/>
+  <text x="480" y="54" text-anchor="middle" fill="#0f172a" font-family="system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="28" font-weight="750">浏览器网址选择逻辑</text>
+  <g font-family="system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif">
+    <g transform="translate(72 112)">
+      <rect width="220" height="210" rx="14" fill="#ffffff" stroke="#dbe4ef"/>
+      <text x="110" y="44" text-anchor="middle" fill="#0f172a" font-size="22" font-weight="700">首次打开</text>
+      <rect x="26" y="74" width="168" height="44" rx="8" fill="#f1f5f9" stroke="#cbd5e1"/>
+      <text x="110" y="102" text-anchor="middle" fill="#334155" font-size="17">此聊天网址</text>
+      <text x="110" y="148" text-anchor="middle" fill="#64748b" font-size="15">不主动跳转</text>
+      <text x="110" y="176" text-anchor="middle" fill="#64748b" font-size="15">等待用户选择</text>
+    </g>
+    <path d="M316 218h94" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
+    <path d="M400 207l14 11-14 11" fill="none" stroke="#94a3b8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <g transform="translate(432 112)">
+      <rect width="220" height="210" rx="14" fill="#ffffff" stroke="#dbe4ef"/>
+      <text x="110" y="44" text-anchor="middle" fill="#0f172a" font-size="22" font-weight="700">用户选择</text>
+      <rect x="26" y="74" width="168" height="44" rx="8" fill="#0d9488"/>
+      <text x="110" y="102" text-anchor="middle" fill="#ffffff" font-size="17">Project Preview</text>
+      <text x="110" y="148" text-anchor="middle" fill="#64748b" font-size="15">优先显示标题</text>
+      <text x="110" y="176" text-anchor="middle" fill="#64748b" font-size="15">保存到当前对话</text>
+    </g>
+    <path d="M676 218h94" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
+    <path d="M760 207l14 11-14 11" fill="none" stroke="#94a3b8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <g transform="translate(792 112)">
+      <rect width="96" height="210" rx="14" fill="#ffffff" stroke="#dbe4ef"/>
+      <text x="48" y="44" text-anchor="middle" fill="#0f172a" font-size="20" font-weight="700">下次</text>
+      <circle cx="48" cy="92" r="24" fill="#ccfbf1"/>
+      <path d="M38 92l7 8 15-18" fill="none" stroke="#0d9488" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="48" y="148" text-anchor="middle" fill="#64748b" font-size="15">直接打开</text>
+      <text x="48" y="176" text-anchor="middle" fill="#64748b" font-size="15">已选网页</text>
+    </g>
+  </g>
+</svg>

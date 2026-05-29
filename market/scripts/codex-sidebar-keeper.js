@@ -19,9 +19,8 @@
   const THEME_KEY = "codexRightPanelKeeper.theme";
   const TARGET_KEY = "codexRightPanelKeeper.targetTool";
   const CLOSE_BROWSER_COMPANIONS_KEY = "codexRightPanelKeeper.closeBrowserCompanions";
-  const BROWSER_URL_MODE_KEY = "codexRightPanelKeeper.browserUrlMode";
-  const BROWSER_URL_KEY = "codexRightPanelKeeper.browserUrl";
   const BROWSER_URL_BY_THREAD_KEY = "codexRightPanelKeeper.browserUrlByThread";
+  const BROWSER_URL_OPTIONS_BY_THREAD_KEY = "codexRightPanelKeeper.browserUrlOptionsByThread";
   const MIN_CLICK_INTERVAL_MS = 850;
   const CHECK_INTERVAL_MS = 1800;
   const BUTTON_CACHE_TTL_MS = 160;
@@ -53,15 +52,6 @@
       tabPattern: /终端|terminal|shell|powershell|cmd(?:\.exe)?/i,
     },
   };
-  const BROWSER_URL_PRESETS = [
-    { label: "LongCat Studio", value: "localhost:5180" },
-    { label: "localhost:18787", value: "localhost:18787" },
-    { label: "localhost:8000", value: "localhost:8000" },
-    { label: "小苹果邮箱验证码工具", value: "localhost:3000" },
-    { label: "localhost:33210", value: "localhost:33210" },
-  ];
-  const CODEX_PLUS_SCRIPT_KEY = "user:codex-sidebar-keeper.js";
-  const CODEX_PLUS_SCRIPT_NAME = "codex-sidebar-keeper.js";
   const PANEL_NO_DRAG_SELECTOR = "button, input, textarea, select, a, [role='button'], [role='radio'], [role='option'], [data-csk-action], [data-csk-target-option]";
 
   try {
@@ -98,8 +88,8 @@
     status: null,
     targetTool: readChoice(TARGET_KEY, "none", Object.keys(TOOL_OPTIONS)),
     closeBrowserCompanions: readBool(CLOSE_BROWSER_COMPANIONS_KEY, true),
-    browserUrlMode: readChoice(BROWSER_URL_MODE_KEY, "current", ["current", "preset", "custom"]),
-    browserUrl: readText(BROWSER_URL_KEY, ""),
+    browserUrlMode: "current",
+    browserUrl: "",
     currentThreadKey: "",
     position: readPosition(),
     resizeHandler: null,
@@ -139,14 +129,6 @@
     lastReason: "started",
     lastActionAt: 0,
   };
-
-  if (
-    state.browserUrlMode === "custom" &&
-    BROWSER_URL_PRESETS.some((item) => item.value === state.browserUrl)
-  ) {
-    state.browserUrlMode = "preset";
-    writeChoice(BROWSER_URL_MODE_KEY, state.browserUrlMode);
-  }
 
   function readBool(key, fallback) {
     try {
@@ -273,6 +255,7 @@
 
   function restoreRouteSnapshot(snapshot, reason = "restore-route") {
     if (!snapshot?.threadKey || snapshot.threadKey === "default") return false;
+    if (isNewConversationContext()) return false;
     if (Date.now() < state.userRouteNavigationUntil) return false;
 
     const selectedKey = getSelectedThreadKey();
@@ -296,6 +279,7 @@
 
   function markUserRouteNavigation(reason = "user-route-navigation") {
     state.userRouteNavigationUntil = Date.now() + 3000;
+    state.newConversationUntil = 0;
     state.lastReason = reason;
   }
 
@@ -309,7 +293,7 @@
   }
 
   function isNewConversationContext() {
-    return Date.now() < state.newConversationUntil && !threadKeyFromUrl();
+    return Date.now() < state.newConversationUntil;
   }
 
   function isNewConversationControl(element) {
@@ -323,7 +307,10 @@
       action.getAttribute?.("href"),
       action.className,
     ].filter(Boolean).join(" ");
-    return /(?:新建|新的|新增|开始|创建)\s*(?:对话|聊天|会话)|(?:new|start|create)\s*(?:chat|conversation|thread)/i.test(`${label} ${attrs}`);
+    if (label.length > 120 && !/(?:new|create).*(?:chat|conversation|thread)|新\s*对话/i.test(attrs)) {
+      return false;
+    }
+    return /(?:新|新建|新的|新增|开始|创建)\s*(?:对话|聊天|会话)|(?:new|start|create)\s*(?:chat|conversation|thread)/i.test(`${label} ${attrs}`);
   }
 
   function markUserRouteNavigationFromEvent(event, reasonPrefix = "user-route") {
@@ -340,7 +327,7 @@
     return false;
   }
 
-  function readBrowserSettingsForThread(threadKey = getCurrentThreadKey(), options = {}) {
+  function readBrowserSettingsForThread(threadKey = getCurrentThreadKey()) {
     const map = readJson(BROWSER_URL_BY_THREAD_KEY, {});
     const item = map[threadKey];
     if (item && typeof item === "object") {
@@ -348,14 +335,6 @@
         mode: ["current", "preset", "custom"].includes(item.mode) ? item.mode : "current",
         url: typeof item.url === "string" ? item.url : "",
       };
-    }
-
-    if (options.allowGlobalMigration) {
-      const legacyMode = readChoice(BROWSER_URL_MODE_KEY, "current", ["current", "preset", "custom"]);
-      const legacyUrl = readText(BROWSER_URL_KEY, "");
-      if (legacyMode !== "current" || legacyUrl) {
-        return { mode: legacyMode, url: legacyUrl };
-      }
     }
     return { mode: "current", url: "" };
   }
@@ -370,18 +349,102 @@
       updatedAt: Date.now(),
     };
     writeJson(BROWSER_URL_BY_THREAD_KEY, map);
-    writeChoice(BROWSER_URL_MODE_KEY, state.browserUrlMode);
-    writeText(BROWSER_URL_KEY, state.browserUrl);
+  }
+
+  function browserOptionLabelScore(label, value) {
+    const clean = String(label || "").trim();
+    if (!clean) return 0;
+    if (isRejectedBrowserOptionLabel(clean)) return 0;
+    if (displayBrowserUrl(clean).toLowerCase() === value.toLowerCase()) return 1;
+    if (/^(?:输出|输入|本地|浏览器|此聊天|new page|无法访问此站点)$/i.test(clean)) return 0;
+    let score = 2;
+    if (!/(?:https?:\/\/|localhost|\b\d{1,3}(?:\.\d{1,3}){3}\b)/i.test(clean)) score += 1;
+    if (/[\u4e00-\u9fffA-Za-z]/.test(clean)) score += 1;
+    if (clean.length >= 2 && clean.length <= 60) score += 1;
+    return score;
+  }
+
+  function isRejectedBrowserOptionLabel(label) {
+    const clean = String(label || "").trim();
+    if (!clean) return true;
+    if (clean.length > 60) return true;
+    if (/^(?:输出|输入|本地|浏览器|此聊天|new page|无法访问此站点)$/i.test(clean)) return true;
+    return /(?:新建对话|自动拉回旧对话|PowerShell|了解新功能|安装最新|缓存命中|上下文|调用|耗时|cachebuster|token|terminal|shell)/i.test(clean);
+  }
+
+  function shouldReplaceBrowserOptionLabel(existingLabel, candidateLabel, value) {
+    const existingScore = browserOptionLabelScore(existingLabel, value);
+    const candidateScore = browserOptionLabelScore(candidateLabel, value);
+    if (candidateScore !== existingScore) return candidateScore > existingScore;
+    return String(candidateLabel || "").trim().length < String(existingLabel || "").trim().length;
+  }
+
+  function readBrowserUrlOptionsForThread(threadKey = getCurrentThreadKey()) {
+    const map = readJson(BROWSER_URL_OPTIONS_BY_THREAD_KEY, {});
+    const explicit = Array.isArray(map[threadKey]) ? map[threadKey] : [];
+    const global = [];
+    Object.values(map).forEach((items) => {
+      if (Array.isArray(items)) global.push(...items);
+    });
+    const ordered = [];
+    const byValue = new Map();
+    const isUrlLabel = (label, value) => displayBrowserUrl(label).toLowerCase() === value.toLowerCase();
+    const addOption = (item) => {
+      const value = displayBrowserUrl(item?.value);
+      const label = String(item?.label || "").trim() || value;
+      if (!value) return;
+      if (isRejectedBrowserOptionLabel(label)) return;
+      const key = value.toLowerCase();
+      const existing = byValue.get(key);
+      if (existing) {
+        if (!isUrlLabel(label, value) && shouldReplaceBrowserOptionLabel(existing.label, label, value)) {
+          existing.label = label;
+        }
+        return;
+      }
+      const option = { value, label };
+      byValue.set(key, option);
+      ordered.push(option);
+    };
+    explicit.forEach(addOption);
+    global.forEach(addOption);
+    return ordered;
+  }
+
+  function writeBrowserUrlOptionsForThread(options, threadKey = getCurrentThreadKey()) {
+    if (!Array.isArray(options) || !options.length) return;
+    const map = readJson(BROWSER_URL_OPTIONS_BY_THREAD_KEY, {});
+    const merged = [];
+    const byValue = new Map();
+    const addOption = (item) => {
+      const value = displayBrowserUrl(item?.value);
+      const label = String(item?.label || "").trim() || value;
+      if (!value) return;
+      if (isRejectedBrowserOptionLabel(label)) return;
+      const key = value.toLowerCase();
+      const existing = byValue.get(key);
+      if (existing) {
+        if (shouldReplaceBrowserOptionLabel(existing.label, label, value)) existing.label = label;
+        existing.updatedAt = Date.now();
+        return;
+      }
+      const option = { value, label, updatedAt: Date.now() };
+      byValue.set(key, option);
+      merged.push(option);
+    };
+    if (Array.isArray(map[threadKey])) map[threadKey].forEach(addOption);
+    options.forEach(addOption);
+    map[threadKey] = merged;
+    writeJson(BROWSER_URL_OPTIONS_BY_THREAD_KEY, map);
   }
 
   function refreshBrowserSettingsForThread(options = {}) {
     const threadKey = getCurrentThreadKey();
     state.currentThreadKey = threadKey;
-    const settings = readBrowserSettingsForThread(threadKey, options);
+    const settings = readBrowserSettingsForThread(threadKey);
     state.browserUrlMode = settings.mode;
     state.browserUrl = settings.url;
     if (state.browserUrlInput) state.browserUrlInput.value = state.browserUrl;
-    if (options.allowGlobalMigration) writeBrowserSettingsForThread();
     state.lastBrowserUrlRequestAt = 0;
     state.lastBrowserUrlValue = "";
     state.lastCurrentChatRequestAt = 0;
@@ -482,31 +545,109 @@
   function applyPosition() {
     if (!state.root) return;
     state.position = { ...DEFAULT_POSITION };
-    const codexPlusMenu = findCodexPlusMenu();
-    if (codexPlusMenu) {
-      const rect = codexPlusMenu.getBoundingClientRect();
-      if (state.root.parentElement !== document.body) {
-        document.body.appendChild(state.root);
+
+    const insertionPoint = findNativeMenuInsertionPoint();
+    if (insertionPoint) {
+      state.host = insertionPoint.parent;
+      state.root.dataset.docked = "topbar";
+      state.root.className = "";
+      state.root.style.left = "";
+      state.root.style.right = "";
+      state.root.style.top = "";
+      state.root.style.transform = "";
+      if (insertionPoint.nativeButtonClass && state.launcher) {
+        state.launcher.className = `${insertionPoint.nativeButtonClass} csk-launcher`;
       }
-      state.host = codexPlusMenu;
-      state.root.dataset.docked = "codex-plus";
-      state.root.style.right = "auto";
-      state.root.style.top = `${Math.max(0, Math.round(rect.top))}px`;
-      state.root.style.transform = "none";
-      const rootWidth = state.root.offsetWidth || 132;
-      state.root.style.left = `${Math.max(8, Math.round(rect.left - rootWidth - 6))}px`;
+      if (state.root.parentElement !== insertionPoint.parent) {
+        const safeBefore = insertionPoint.before?.parentElement === insertionPoint.parent
+          ? insertionPoint.before
+          : null;
+        insertionPoint.parent.insertBefore(state.root, safeBefore);
+      }
       return;
     }
 
     state.host = null;
-    if (state.root.parentElement !== document.body) {
-      document.body.appendChild(state.root);
-    }
     state.root.dataset.docked = "fallback";
-    state.root.style.left = "auto";
-    state.root.style.right = `${DOCK_RIGHT_PX}px`;
-    state.root.style.top = `${DOCK_TOP_PX}px`;
-    state.root.style.transform = "none";
+    state.root.className = "csk-floating-menu";
+    if (state.launcher) state.launcher.className = "csk-launcher";
+    if (state.root.parentElement !== document.documentElement) {
+      document.documentElement.appendChild(state.root);
+    }
+    updateFloatingMenuPosition();
+  }
+
+  function findNativeMenuInsertionPoint() {
+    const header = document.querySelector(".app-header-tint") || document.querySelector("header");
+    const menuBar = header?.querySelector?.('[class*="ms-auto"][class*="flex"][class*="items-center"]');
+    if (!menuBar || state.root?.contains(menuBar)) return null;
+
+    const buttons = Array.from(menuBar.querySelectorAll("button"))
+      .filter((button) => !state.root?.contains(button));
+    if (!buttons.length) return null;
+
+    return {
+      parent: menuBar,
+      before: buttons[buttons.length - 1]?.nextSibling || null,
+      nativeButtonClass: buttons[buttons.length - 1]?.className || "",
+    };
+  }
+
+  function numericCssValue(value) {
+    const parsed = Number.parseFloat(value || "");
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function setCssPropIfChanged(element, prop, value) {
+    if (element.style.getPropertyValue(prop) !== value) {
+      element.style.setProperty(prop, value);
+    }
+  }
+
+  function headerTitleRegion(header) {
+    const candidates = Array.from(header?.querySelectorAll?.('[data-state], [class*="truncate"], [class*="text-base"]') || []);
+    return candidates.find((node) => {
+      if (!node?.querySelector?.('[data-state], button')) return false;
+      if (!node.textContent?.trim()) return false;
+      return node.closest?.(".draggable") || node.closest?.('[class*="grid-cols-[minmax(0,1fr)]"]');
+    }) || null;
+  }
+
+  function isHeaderToolbarButton(button, header, rect) {
+    if (!button || state.root?.contains(button)) return false;
+    if (!(rect.width > 0 && rect.height > 0 && rect.left > window.innerWidth / 2)) return false;
+    const buttonCluster = button.closest(".ms-auto.flex.shrink-0.items-center");
+    if (buttonCluster && header?.contains(buttonCluster)) return true;
+    const titleRegion = headerTitleRegion(header);
+    if (titleRegion?.contains?.(button)) return false;
+    return Boolean(button.closest?.('[class*="ms-auto"][class*="shrink-0"][class*="items-center"]'));
+  }
+
+  function updateFloatingMenuPosition() {
+    if (!state.root?.classList?.contains("csk-floating-menu")) return;
+    const header = document.querySelector(".app-header-tint") || document.querySelector("header");
+    if (!header) return;
+    const toolbarButtons = Array.from(header.querySelectorAll("button"))
+      .map((button) => ({ button, rect: button.getBoundingClientRect() }))
+      .filter(({ button, rect }) => isHeaderToolbarButton(button, header, rect))
+      .sort((left, right) => left.rect.left - right.rect.left);
+    const anchor = toolbarButtons[0];
+    if (anchor) {
+      const measuredGap = toolbarButtons[1] ? toolbarButtons[1].rect.left - toolbarButtons[0].rect.right : 0;
+      const styles = anchor.button.parentElement ? getComputedStyle(anchor.button.parentElement) : null;
+      const gap = Math.max(numericCssValue(styles?.columnGap || styles?.gap), measuredGap, 0);
+      setCssPropIfChanged(state.root, "--csk-menu-top", `${anchor.rect.top}px`);
+      setCssPropIfChanged(state.root, "--csk-menu-height", `${anchor.rect.height}px`);
+      setCssPropIfChanged(state.root, "--csk-menu-right", `${Math.max(0, window.innerWidth - anchor.rect.left + gap)}px`);
+      return;
+    }
+
+    const headerRect = header.getBoundingClientRect();
+    if (headerRect.height) {
+      setCssPropIfChanged(state.root, "--csk-menu-top", `${headerRect.top}px`);
+      setCssPropIfChanged(state.root, "--csk-menu-height", `${headerRect.height}px`);
+    }
+    state.root.style.removeProperty("--csk-menu-right");
   }
 
   function setPosition() {
@@ -638,7 +779,7 @@
   function findRightPanelToggle() {
     if (!isCodexShellDocument()) return null;
     const panelTogglePattern =
-      /显示\s*\/?\s*隐藏\s*(?:右侧栏|右侧面板|侧边面板)|切换\s*(?:右侧栏|右侧面板|侧边面板)|(?:show|hide|toggle)\s*(?:\/\s*(?:show|hide))?\s*(?:right\s*)?(?:sidebar|side\s*panel|panel)/i;
+      /显示\s*\/?\s*隐藏\s*(?:右侧栏|右侧面板|侧边栏|侧边面板)|切换\s*(?:右侧栏|右侧面板|侧边栏|侧边面板)|(?:show|hide|toggle)\s*(?:\/\s*(?:show|hide))?\s*(?:right\s*)?(?:sidebar|side\s*panel|panel)/i;
     return getVisibleButtonInfo('button,[role="button"]')
       .filter(({ label, rect }) => {
         if (rect.x < window.innerWidth - 96 || rect.y > 72) return false;
@@ -646,20 +787,6 @@
         return panelTogglePattern.test(label);
       })
       .sort((a, b) => b.rect.x - a.rect.x || a.rect.y - b.rect.y)[0]?.button || null;
-  }
-
-  function findCodexPlusMenu() {
-    const exact = document.getElementById("codex-plus-menu");
-    if (exact && isVisible(exact)) return exact;
-
-    return querySelectorAllDeep("button,div")
-      .filter((element) => {
-        if (state.root?.contains(element) || !isVisible(element)) return false;
-        const label = buttonLabel(element);
-        const rect = element.getBoundingClientRect();
-        return /code(?:x)?\+\+/i.test(label) && rect.y <= 48 && rect.width <= 220 && rect.height <= 60;
-      })
-      .sort((a, b) => a.getBoundingClientRect().x - b.getBoundingClientRect().x)[0] || null;
   }
 
   function findTopBarHost() {
@@ -911,6 +1038,7 @@
 
   function closeOtherToolTabs(reason = "single-tool-cleanup", pass = 0, routeSnapshot = null) {
     if (!state.closeBrowserCompanions || state.targetTool === "none" || !isRightPanelOpen()) return false;
+    if (isNewConversationContext()) return false;
     if (!routeSnapshot) {
       routeSnapshot = captureRouteSnapshot();
     }
@@ -1211,6 +1339,196 @@
     return `https://${url}`;
   }
 
+  function displayBrowserUrl(value) {
+    return String(value || "")
+      .trim()
+      .replace(/^https?:\/\//i, "")
+      .replace(/\/$/, "");
+  }
+
+  function extractBrowserUrlsFromText(text) {
+    const matches = String(text || "").match(
+      /(?:https?:\/\/|file:\/\/)?(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:[/?#][^\s"'<>)]*)?|https?:\/\/[^\s"'<>)]{3,}/gi
+    ) || [];
+    return matches
+      .map((item) => item.trim().replace(/[，。；;,.]+$/, ""))
+      .filter(Boolean);
+  }
+
+  function titleForBrowserUrl(text, url) {
+    const displayUrl = displayBrowserUrl(url);
+    const lines = String(text || "")
+      .split(/\n+/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const collapseRepeatedTitle = (title) => {
+      const words = title.split(/\s+/).filter(Boolean);
+      if (words.length >= 2 && words.length % 2 === 0) {
+        const half = words.length / 2;
+        const left = words.slice(0, half).join(" ");
+        const right = words.slice(half).join(" ");
+        if (left && left === right) return left;
+      }
+      return title.replace(/(.{2,40})\s+\1$/u, "$1").trim();
+    };
+    const cleanTitle = (line) => {
+      let title = String(line || "").trim();
+      for (const foundUrl of extractBrowserUrlsFromText(title)) {
+        title = title.replace(foundUrl, " ");
+        title = title.replace(displayBrowserUrl(foundUrl), " ");
+      }
+      title = title
+        .replace(/\bopen\b/ig, " ")
+        .replace(/打开/g, " ")
+        .replace(/此聊天(?:网址)?/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      title = collapseRepeatedTitle(title);
+      if (!title || title === displayUrl) return "";
+      if (/^(?:本地|浏览器|正在注释|local|browser)$/i.test(title)) return "";
+      if (/^(?:此聊天|此聊天网址|current chat|new page)$/i.test(title)) return "";
+      if (/无法访问此站点|无法访问该网站|This site can'?t be reached/i.test(title)) return "";
+      if (extractBrowserUrlsFromText(title).length) return "";
+      return title.length <= 60 ? title : "";
+    };
+
+    return lines.map(cleanTitle).find(Boolean) || displayUrl;
+  }
+
+  function browserOptionTextForElement(element, url) {
+    const displayUrl = displayBrowserUrl(url);
+    let bestText = element.innerText || element.textContent || buttonLabel(element) || "";
+    let node = element;
+    for (let depth = 0; node?.parentElement && depth < 5; depth += 1, node = node.parentElement) {
+      const parent = node.parentElement;
+      if (state.root?.contains(parent) || !isVisible(parent)) continue;
+      const rect = parent.getBoundingClientRect();
+      const text = parent.innerText || parent.textContent || buttonLabel(parent) || "";
+      if (
+        text.includes(displayUrl) &&
+        rect.width >= 180 &&
+        rect.width <= 760 &&
+        rect.height >= 32 &&
+        rect.height <= 190
+      ) {
+        bestText = text;
+      }
+    }
+    return bestText;
+  }
+
+  function findCurrentThreadBrowserUrlOptions() {
+    const minX = Math.min(rightPanelMinX(), Math.max(420, window.innerWidth * 0.42));
+    const candidates = querySelectorAllDeep("button,a,[role='button'],[role='option'],li,article,section,div,span,p")
+      .filter((element) => !state.root?.contains(element) && isVisible(element))
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        const text = element.innerText || element.textContent || buttonLabel(element) || "";
+        return { element, rect, text };
+      })
+      .filter(({ rect, text }) =>
+        rect.x >= minX &&
+        rect.y >= 48 &&
+        rect.width >= 24 &&
+        rect.height >= 12 &&
+        rect.height <= 190 &&
+        !/无法访问此站点|无法访问该网站|This site can'?t be reached/i.test(text) &&
+        extractBrowserUrlsFromText(text).length
+      )
+      .sort((a, b) =>
+        a.rect.y - b.rect.y ||
+        a.rect.x - b.rect.x ||
+        (b.rect.width * b.rect.height) - (a.rect.width * a.rect.height)
+      );
+
+    const seen = new Set();
+    const options = [];
+    for (const item of candidates) {
+      for (const rawUrl of extractBrowserUrlsFromText(item.text)) {
+        const value = displayBrowserUrl(rawUrl);
+        const key = value.toLowerCase();
+        if (!value) continue;
+        const optionText = browserOptionTextForElement(item.element, value);
+        const label = titleForBrowserUrl(optionText, value);
+        if (isRejectedBrowserOptionLabel(label)) continue;
+        const existing = options.find((option) => option.key === key);
+        if (existing) {
+          if (existing.label === existing.value && label !== value) {
+            existing.label = label;
+          }
+          continue;
+        }
+        seen.add(key);
+        options.push({
+          key,
+          value,
+          label,
+        });
+      }
+    }
+    return options;
+  }
+
+  function rebuildBrowserUrlSelect() {
+    if (!state.browserUrlSelect) return;
+    const liveOptions = findCurrentThreadBrowserUrlOptions();
+    if (liveOptions.length) writeBrowserUrlOptionsForThread(liveOptions);
+    const cachedOptions = readBrowserUrlOptionsForThread();
+    const merged = [];
+    const byValue = new Map();
+    const addMergedOption = (item) => {
+      const value = displayBrowserUrl(item.value);
+      const key = value.toLowerCase();
+      if (!value) return;
+      const label = String(item.label || "").trim() || value;
+      const existing = byValue.get(key);
+      if (existing) {
+        if (shouldReplaceBrowserOptionLabel(existing.label, label, value)) existing.label = label;
+        return;
+      }
+      const option = { value, label };
+      byValue.set(key, option);
+      merged.push(option);
+    };
+    liveOptions.forEach(addMergedOption);
+    cachedOptions.forEach(addMergedOption);
+    if (
+      state.browserUrlMode !== "current" &&
+      state.browserUrl &&
+      !merged.some((item) => item.value.toLowerCase() === displayBrowserUrl(state.browserUrl).toLowerCase())
+    ) {
+      merged.push({
+        value: displayBrowserUrl(state.browserUrl),
+        label: displayBrowserUrl(state.browserUrl),
+      });
+    }
+
+    const selectedAvailable = merged.some((item) =>
+      item.value.toLowerCase() === displayBrowserUrl(state.browserUrl).toLowerCase()
+    );
+    if (state.browserUrlMode !== "current" && !selectedAvailable) {
+      state.browserUrlMode = "current";
+      state.browserUrl = "";
+      writeBrowserSettingsForThread();
+    }
+
+    state.browserUrlSelect.textContent = "";
+    const currentOption = document.createElement("option");
+    currentOption.value = "current";
+    currentOption.textContent = "此聊天网址";
+    state.browserUrlSelect.appendChild(currentOption);
+    for (const item of merged) {
+      const option = document.createElement("option");
+      option.value = item.value;
+      option.textContent = item.label;
+      state.browserUrlSelect.appendChild(option);
+    }
+
+    state.browserUrlSelect.value = state.browserUrlMode === "current"
+      ? "current"
+      : displayBrowserUrl(state.browserUrl);
+  }
+
   function setInputValue(element, value) {
     if (!element) return;
     if (element.isContentEditable || element.getAttribute("contenteditable") === "true") {
@@ -1285,10 +1603,24 @@
 
   function setStatus(text, mode = "idle") {
     if (!state.status || !state.root) return;
+    if (needsAutoKeepPrompt() && !String(text || "").includes("切换对话时保持打开")) {
+      const label = TOOL_OPTIONS[state.targetTool]?.label || "当前目标";
+      text = `请先打开“切换对话时保持打开”以保持${label}`;
+      mode = "warn";
+    }
     state.status.textContent = text;
     state.root.dataset.status = mode;
     syncToggleControls();
     syncTargetControl();
+  }
+
+  function needsAutoKeepPrompt(tool = state.targetTool) {
+    return !state.autoKeep && tool !== "none";
+  }
+
+  function setAutoKeepPrompt() {
+    const label = TOOL_OPTIONS[state.targetTool]?.label || "当前目标";
+    setStatus(`请先打开“切换对话时保持打开”以保持${label}`, "warn");
   }
 
   function syncToggleControls() {
@@ -1305,7 +1637,7 @@
   function syncTargetControl() {
     if (!state.root) return;
     if (state.browserUrlGroup) {
-      const showBrowserUrl = state.targetTool === "browser";
+      const showBrowserUrl = state.targetTool === "browser" && state.autoKeep;
       state.browserUrlGroup.hidden = !showBrowserUrl;
       state.browserUrlGroup.setAttribute("aria-hidden", String(!showBrowserUrl));
     }
@@ -1320,18 +1652,12 @@
       button.setAttribute("aria-checked", String(selected));
     });
     if (state.browserUrlInput) {
-      const custom = state.browserUrlMode === "custom";
-      state.browserUrlInput.hidden = !custom;
-      state.browserUrlInput.disabled = !custom;
-      state.browserUrlInput.placeholder = state.browserUrlMode === "custom"
-        ? "例如 https://example.com 或 localhost:3000"
-        : "当前选择：此聊天网址";
+      state.browserUrlInput.hidden = true;
+      state.browserUrlInput.disabled = true;
+      state.browserUrlInput.placeholder = "当前选择：此聊天网址";
     }
     if (state.browserUrlSelect) {
-      const preset = BROWSER_URL_PRESETS.find((item) => item.value === state.browserUrl);
-      state.browserUrlSelect.value = state.browserUrlMode === "current"
-        ? "current"
-        : preset?.value || "custom";
+      rebuildBrowserUrlSelect();
     }
   }
 
@@ -1460,6 +1786,11 @@
   function requestCustomBrowserUrl(reason = "browser-custom-url", options = {}) {
     if (state.targetTool !== "browser") return false;
     if (isToolPaused("browser")) return true;
+    if (isNewConversationContext()) {
+      state.currentChatRetryActive = false;
+      setStatus("新建对话中，仅保持浏览器", "ok");
+      return false;
+    }
     const url = normalizeBrowserUrl(state.browserUrl);
     if (!url) return false;
 
@@ -1499,6 +1830,16 @@
     });
 
     return true;
+  }
+
+  function requestSavedBrowserUrl(reason = "browser-saved-url", options = {}) {
+    if (isNewConversationContext()) {
+      state.currentChatRetryActive = false;
+      setStatus("新建对话中，仅保持浏览器", "ok");
+      return false;
+    }
+    if (state.browserUrlMode === "current" || !state.browserUrl.trim()) return false;
+    return requestCustomBrowserUrl(reason, options);
   }
 
   function ensureCustomBrowserUrl(url, reason = "browser-custom-url", options = {}) {
@@ -1663,7 +2004,7 @@
       if (
         state.targetTool === "browser" &&
         tab?.selected &&
-        requestCurrentChatBrowserSite(`${reason}-current-chat`)
+        requestSavedBrowserUrl(`${reason}-saved-url`)
       ) {
         return true;
       }
@@ -1683,7 +2024,7 @@
       activateElement(tab.button);
       window.setTimeout(() => closeOtherToolTabs(`${reason}-after-tab-cleanup`), 300);
       if (state.targetTool === "browser") {
-        window.setTimeout(() => requestCurrentChatBrowserSite(`${reason}-after-browser-tab`, { force: true }), 520);
+        window.setTimeout(() => requestSavedBrowserUrl(`${reason}-after-browser-tab`, { force: true }), 520);
       } else if (state.targetTool === "terminal") {
         verifyTerminalOpened(`${reason}-after-terminal-tab`);
       } else {
@@ -1731,7 +2072,7 @@
       if (state.targetTool !== "none" && isRightPanelOpen()) {
         if (
           state.targetTool === "browser" &&
-          requestCurrentChatBrowserSite(`${reason}-after-launch`, { force: true })
+          requestSavedBrowserUrl(`${reason}-after-launch`, { force: true })
         ) {
           return;
         }
@@ -1740,7 +2081,7 @@
     }, 260);
     window.setTimeout(() => closeOtherToolTabs(`${reason}-after-launch-cleanup`), 420);
     if (state.targetTool === "browser") {
-      window.setTimeout(() => requestCurrentChatBrowserSite(`${reason}-after-launch-followup`, { force: true }), 780);
+      window.setTimeout(() => requestSavedBrowserUrl(`${reason}-after-launch-followup`, { force: true }), 780);
     } else if (state.targetTool === "terminal") {
       verifyTerminalOpened(`${reason}-after-launch`);
     }
@@ -1751,6 +2092,8 @@
   function setOpenStatus() {
     if (state.targetTool === "none") {
       keepOnlyPanelOpen("open-status-none");
+    } else if (needsAutoKeepPrompt()) {
+      setAutoKeepPrompt();
     } else {
       setStatus(`目标:${TOOL_OPTIONS[state.targetTool].label}`, "ok");
     }
@@ -1762,7 +2105,11 @@
     if (!isCodexShellDocument()) return false;
 
     if (!state.autoKeep) {
-      setStatus("已暂停", "idle");
+      if (needsAutoKeepPrompt()) {
+        setAutoKeepPrompt();
+      } else {
+        setStatus("已暂停", "idle");
+      }
       return false;
     }
 
@@ -1942,9 +2289,14 @@
     window.clearTimeout(state.pendingCheck);
     state.pendingCheck = 0;
     if (state.autoKeep) {
+      state.targetTool = "none";
+      writeChoice(TARGET_KEY, state.targetTool);
+      state.currentChatRetryToken += 1;
+      state.currentChatRetryActive = false;
       state.panelFailureUntil = 0;
       state.panelCommand = "";
       state.panelCommandUntil = 0;
+      syncTargetControl();
       ensureRightPanel("toggle-auto");
     } else {
       state.currentChatRetryToken += 1;
@@ -1953,6 +2305,9 @@
       state.panelCommandUntil = 0;
       state.panelFailureUntil = 0;
       closeRightPanel("toggle-auto-off");
+      if (needsAutoKeepPrompt()) {
+        window.setTimeout(() => setAutoKeepPrompt(), 260);
+      }
     }
   }
 
@@ -1997,9 +2352,6 @@
       state.browserUrlInput.value = state.browserUrl;
     }
     syncTargetControl();
-    if (state.targetTool === "browser") {
-      requestCurrentChatBrowserSite("set-browser-url-mode", { force: true });
-    }
     return state.browserUrlMode;
   }
 
@@ -2022,15 +2374,12 @@
     syncTargetControl();
     if (state.targetTool === "none") {
       keepOnlyPanelOpen("target-change-none");
+    } else if (needsAutoKeepPrompt()) {
+      setAutoKeepPrompt();
     } else {
       const label = TOOL_OPTIONS[state.targetTool].label;
       setStatus(`等待${label}...`, "busy");
       ensureRightPanel("target-change");
-      if (state.targetTool === "browser") {
-        requestCurrentChatBrowserSite("target-change-current-chat", { force: true });
-      } else if (!state.autoKeep) {
-        setStatus(`等待${label}...`, "busy");
-      }
     }
   }
 
@@ -2041,15 +2390,20 @@
     style.textContent = `
       #${ROOT_ID} {
         position: fixed;
-        top: ${DOCK_TOP_PX}px;
-        right: ${DOCK_RIGHT_PX}px;
-        z-index: 2147483647;
-        height: 44px;
+        top: var(--csk-menu-top, ${DOCK_TOP_PX}px);
+        right: var(--csk-menu-right, ${DOCK_RIGHT_PX}px);
+        left: auto;
+        z-index: 2147483645;
+        height: var(--csk-menu-height, 30px);
         display: inline-flex;
         align-items: center;
-        color: rgba(100, 116, 139, 0.7);
-        font: 13px/1.35 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        justify-content: center;
+        color: #d1d5db;
+        font: 13px system-ui, sans-serif;
+        text-align: right;
         user-select: none;
+        pointer-events: auto;
+        -webkit-app-region: no-drag;
       }
       body > #${ROOT_ID} ~ #${ROOT_ID} {
         display: none !important;
@@ -2061,18 +2415,16 @@
         inset: auto;
         z-index: auto;
         flex: 0 0 auto;
-        height: 36px;
-        margin: 0 6px 0 0;
+        height: 100%;
+        margin: 0;
         align-self: center;
+        color: inherit;
+        font: inherit;
       }
       #${ROOT_ID}[data-docked="fallback"] {
         position: fixed;
-        z-index: 2147483647;
-      }
-      #${ROOT_ID}[data-docked="codex-plus"] {
-        position: fixed;
-        z-index: 2147483646;
-        height: 36px;
+        z-index: 2147483645;
+        height: var(--csk-menu-height, 30px);
         margin: 0;
       }
       #${ROOT_ID} button {
@@ -2083,47 +2435,29 @@
       #${ROOT_ID} .csk-launcher {
         display: inline-flex;
         align-items: center;
-        gap: 7px;
-        height: 34px;
-        padding: 0 9px;
+        justify-content: center;
+        gap: 4px;
+        height: 100%;
+        padding: 0 8px;
         border: 0;
-        border-radius: 8px;
+        border-radius: 0;
         background: transparent;
-        color: rgba(100, 116, 139, 0.66);
-        font-weight: 650;
+        color: inherit;
+        font: inherit;
         line-height: 1;
         white-space: nowrap;
         cursor: pointer;
         pointer-events: auto;
         -webkit-app-region: no-drag;
-        transition: color 0.16s ease, background 0.16s ease, opacity 0.16s ease;
+        transition: color 0.16s ease, background 0.16s ease;
       }
       #${ROOT_ID}[data-docked="topbar"] .csk-launcher {
-        height: 36px;
-        min-width: 0;
-        justify-content: center;
-        gap: 7px;
-        padding: 0 8px;
-        border: 0;
-        background: transparent;
-        color: rgba(100, 116, 139, 0.62);
-        box-shadow: none;
-      }
-      #${ROOT_ID}[data-docked="codex-plus"] .csk-launcher {
-        height: 36px;
-        min-width: 0;
-        justify-content: center;
-        gap: 7px;
-        padding: 0 8px;
-        border: 0;
-        background: transparent;
-        color: rgba(100, 116, 139, 0.62);
-        box-shadow: none;
+        color: inherit;
+        font: inherit;
       }
       #${ROOT_ID} .csk-launcher:hover,
       #${ROOT_ID} .csk-launcher[aria-expanded="true"] {
-        background: transparent;
-        color: rgba(51, 65, 85, 0.82);
+        color: inherit;
       }
       #${ROOT_ID} .csk-launcher:focus-visible,
       #${ROOT_ID} button:focus-visible {
@@ -2131,12 +2465,13 @@
         outline-offset: 2px;
       }
       #${ROOT_ID} .csk-brand-dot {
-        width: 8px;
-        height: 8px;
+        width: 9px;
+        height: 9px;
         border-radius: 999px;
-        background: #10b981;
-        box-shadow: 0 0 7px rgba(16, 185, 129, 0.46);
-        animation: csk-dot-pulse 4.8s ease-in-out infinite;
+        background: #34d399;
+        box-shadow: 0 0 8px rgba(52, 211, 153, 0.75);
+        display: inline-block;
+        flex: 0 0 auto;
       }
       @keyframes csk-dot-pulse {
         0%, 32% {
@@ -2153,17 +2488,16 @@
         }
       }
       #${ROOT_ID} .csk-version {
-        color: rgba(100, 116, 139, 0.5);
-        font-weight: 600;
+        color: inherit;
       }
-      #${ROOT_ID}[data-docked="topbar"] .csk-version,
-      #${ROOT_ID}[data-docked="codex-plus"] .csk-version {
+      #${ROOT_ID}[data-docked="topbar"] .csk-version {
         display: none;
       }
       #${ROOT_ID} .csk-panel {
         position: absolute;
         top: calc(100% + 6px);
         right: -252px;
+        z-index: 2147483647;
         width: min(390px, calc(100vw - 24px));
         max-height: calc(100vh - 16px);
         box-sizing: border-box;
@@ -2172,6 +2506,8 @@
         border-radius: 18px;
         background: #202124;
         color: #f1f5f9;
+        font: 13px/1.35 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        text-align: left;
         box-shadow: 0 26px 64px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.035);
         padding: 18px;
         pointer-events: auto;
@@ -2190,6 +2526,9 @@
       #${ROOT_ID} .csk-panel textarea,
       #${ROOT_ID} .csk-panel select,
       #${ROOT_ID} .csk-panel a {
+        color: inherit;
+        font: inherit;
+        letter-spacing: 0;
         cursor: auto;
       }
       #${ROOT_ID} .csk-panel[data-dragged="true"] {
@@ -2197,9 +2536,6 @@
         max-height: calc(100vh - 16px);
       }
       #${ROOT_ID}[data-docked="topbar"] .csk-panel {
-        right: 0;
-      }
-      #${ROOT_ID}[data-docked="codex-plus"] .csk-panel {
         right: 0;
       }
       #${ROOT_ID} .csk-panel[hidden] {
@@ -2721,23 +3057,27 @@
           </span>
         </header>
         <section class="csk-help" data-csk-help hidden>
-          <div class="csk-help-title">一次只保留一个右侧标签</div>
-          <div class="csk-help-subtitle">按“打开后显示”的选择整理右侧工作区。</div>
+          <div class="csk-help-title">右侧工作区保持规则</div>
+          <div class="csk-help-subtitle">先保持右侧栏，再按目标整理标签和网址。</div>
           <div class="csk-help-rules">
             <div class="csk-help-rule">
               <span class="csk-help-index">1</span>
-              <span><strong>保留当前目标</strong><span>选中侧边聊天、浏览器或终端时，只留对应标签。</span></span>
+              <span><strong>先打开保持</strong><span>关闭“切换对话时保持打开”时，侧边聊天、浏览器和终端只提示，不会自动切换。</span></span>
             </div>
             <div class="csk-help-rule">
               <span class="csk-help-index">2</span>
-              <span><strong>关闭其它工具</strong><span>目标以外的右侧工具标签会被依次关闭，并保持当前主对话。</span></span>
+              <span><strong>选择打开目标</strong><span>只打开仅展开右侧栏；选择工具时会保留对应标签，并可关闭其它右侧工具。</span></span>
             </div>
             <div class="csk-help-rule">
               <span class="csk-help-index">3</span>
-              <span><strong>处理重复标签</strong><span>同类标签有多个时，优先保留当前选中的那个。</span></span>
+              <span><strong>浏览器网址</strong><span>首次默认此聊天网址，不主动跳转；选择网页后会记住，下次优先打开已选网址。</span></span>
+            </div>
+            <div class="csk-help-rule">
+              <span class="csk-help-index">4</span>
+              <span><strong>标题优先显示</strong><span>网址缓存优先显示网页标题，过滤对话正文、终端提示等误识别内容。</span></span>
             </div>
           </div>
-          <div class="csk-help-note">选择“只打开”时只展开右侧栏，不保留任何右侧工具标签，也不会切到新建对话。</div>
+          <div class="csk-help-note">新建对话时只保持右侧栏状态，不会把主界面自动拉回旧对话。</div>
         </section>
         <section class="csk-section">
           <div class="csk-section-title">右侧工作面板</div>
@@ -2760,12 +3100,6 @@
             <div class="csk-label">浏览器网址</div>
             <select class="csk-url-select" data-csk-browser-url-select aria-label="选择打开浏览器时自动进入的网站">
               <option value="current">此聊天网址</option>
-              <option value="localhost:5180">LongCat Studio (localhost:5180)</option>
-              <option value="localhost:18787">localhost:18787</option>
-              <option value="localhost:8000">localhost:8000</option>
-              <option value="localhost:3000">小苹果邮箱验证码工具 (localhost:3000)</option>
-              <option value="localhost:33210">localhost:33210</option>
-              <option value="custom">自定义网址</option>
             </select>
             <input class="csk-url-input" data-csk-browser-url type="text" spellcheck="false" autocomplete="off" placeholder="留空则打开此聊天网址，例如 https://example.com" aria-label="打开浏览器时自动打开的网址">
           </div>
@@ -2788,7 +3122,7 @@
     state.browserUrlSelect = root.querySelector(".csk-url-select");
     state.browserUrlInput = root.querySelector(".csk-url-input");
     state.status = root.querySelector(".csk-text");
-    refreshBrowserSettingsForThread({ allowGlobalMigration: true });
+    refreshBrowserSettingsForThread();
     removeDuplicateRoots();
 
     syncToggleControls();
@@ -2863,9 +3197,6 @@
       const value = event.currentTarget.value;
       if (value === "current") {
         setBrowserUrlMode("current");
-      } else if (value === "custom") {
-        setBrowserUrlMode("custom");
-        state.browserUrlInput?.focus?.();
       } else {
         setBrowserUrl(value, "preset");
       }
@@ -2997,7 +3328,7 @@
       if (!event.isTrusted) return;
       const key = String(event.key || "").toLowerCase();
       if ((event.ctrlKey || event.metaKey) && key === "n") {
-        markUserRouteNavigation("user-keyboard-new-conversation");
+        markNewConversationNavigation("user-keyboard-new-conversation");
       }
     };
     document.addEventListener("keydown", state.routeKeyHandler, true);
@@ -3045,42 +3376,7 @@
     delete window[API_KEY];
   }
 
-  function markCodexPlusLoaded() {
-    try {
-      const registry = (window.__codexPlusUserScripts = window.__codexPlusUserScripts || { scripts: {} });
-      registry.scripts = registry.scripts || {};
-      registry.scripts[CODEX_PLUS_SCRIPT_KEY] = {
-        key: CODEX_PLUS_SCRIPT_KEY,
-        name: CODEX_PLUS_SCRIPT_NAME,
-        source: "user",
-        status: "loaded",
-        error: "",
-        loadedAt: new Date().toISOString(),
-      };
-    } catch {
-      // Codex++ is optional; the keeper still works when loaded directly.
-    }
-  }
-
-  function initialize() {
-    if (!isCodexShellDocument() || state.root) return Boolean(state.root);
-    installStyle();
-    renderControls();
-    state.startupHoldUntil = Date.now() + STARTUP_HOLD_MS;
-    installObservers();
-    if (state.autoKeep) {
-      if (isRightPanelOpen()) {
-        state.startupHoldUntil = 0;
-        ensureRightPanel("startup-ready");
-      } else {
-        setStatus("等待界面就绪...", "busy");
-        window.setTimeout(() => ensureRightPanel("startup-ready"), STARTUP_HOLD_MS);
-      }
-    } else {
-      setStatus(isRightPanelOpen() ? "已暂停自动保持" : "右侧栏已关闭", "idle");
-    }
-    markCodexPlusLoaded();
-
+  function exposeApi() {
     window[API_KEY] = {
       version: SCRIPT_VERSION,
       ensure: ensureRightPanel,
@@ -3132,6 +3428,30 @@
         status: state.status?.textContent || "",
       }),
     };
+  }
+
+  function initialize() {
+    if (!isCodexShellDocument() || state.root) {
+      if (state.root && !window[API_KEY]) exposeApi();
+      return Boolean(state.root);
+    }
+    installStyle();
+    renderControls();
+    exposeApi();
+    state.startupHoldUntil = Date.now() + STARTUP_HOLD_MS;
+    installObservers();
+    if (state.autoKeep) {
+      if (isRightPanelOpen()) {
+        state.startupHoldUntil = 0;
+        ensureRightPanel("startup-ready");
+      } else {
+        setStatus("等待界面就绪...", "busy");
+        window.setTimeout(() => ensureRightPanel("startup-ready"), STARTUP_HOLD_MS);
+      }
+    } else {
+      setStatus(isRightPanelOpen() ? "已暂停自动保持" : "右侧栏已关闭", "idle");
+    }
+    exposeApi();
     return true;
   }
 

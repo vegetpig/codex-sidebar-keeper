@@ -1,24 +1,24 @@
 {
   "name": "codex-sidebar-keeper",
-  "version": "0.1.0+codex.20260529091204",
-  "description": "A Codex++ user script and Codex personal plugin that keeps the Codex Desktop right-side work panel open.",
+  "version": "0.1.0+codex.20260529173623",
+  "description": "A Codex personal plugin that keeps the Codex Desktop right-side work panel open.",
   "author": {
-    "name": "vegetpig"
+    "name": "Local Developer"
   },
   "skills": "./skills/",
   "interface": {
     "displayName": "Codex Sidebar Keeper",
     "shortDescription": "Keeps the Codex right-side work panel open.",
     "longDescription": "Codex Sidebar Keeper keeps the Codex Desktop right-side work panel open after switching conversations, can prefer side chat, browser, or terminal, and can keep only one right-panel tab while preserving the current main conversation.",
-    "developerName": "vegetpig",
+    "developerName": "Local Developer",
     "category": "Productivity",
     "capabilities": [
       "Local Scripts",
       "Productivity"
     ],
     "defaultPrompt": [
-      "Install the Codex++ sidebar keeper user script.",
-      "Reload the Codex++ sidebar keeper user script.",
+      "Install the Codex sidebar keeper plugin.",
+      "Reload the Codex sidebar keeper plugin.",
       "Help me set the preferred right-side panel target.",
       "Help me keep only one Codex right-panel tab."
     ]

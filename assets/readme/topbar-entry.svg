@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="170" viewBox="0 0 960 170" role="img" aria-labelledby="title desc">
+  <title id="title">Sidebar Keeper top bar entry</title>
+  <desc id="desc">A Codex-like top bar showing the Sidebar Keeper entry next to another plugin entry.</desc>
+  <rect width="960" height="170" rx="18" fill="#f6f8fb"/>
+  <rect y="0" width="960" height="74" fill="#eef3f8"/>
+  <line x1="0" y1="74" x2="960" y2="74" stroke="#d7dee8"/>
+  <g transform="translate(232 0)">
+    <circle cx="18" cy="37" r="9" fill="#34d399"/>
+    <text x="34" y="44" fill="#c7d0db" font-family="system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="28" font-weight="400">Sidebar Keeper</text>
+  </g>
+  <g transform="translate(590 0)" opacity=".9">
+    <circle cx="18" cy="37" r="9" fill="#34d399"/>
+    <text x="34" y="44" fill="#c7d0db" font-family="system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="28" font-weight="400">Other Plugin</text>
+  </g>
+  <text x="480" y="122" text-anchor="middle" fill="#64748b" font-family="system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="19">Top bar entry follows the native Codex toolbar style</text>
+</svg>
