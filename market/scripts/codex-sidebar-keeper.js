@@ -638,10 +638,11 @@
   function findRightPanelToggle() {
     if (!isCodexShellDocument()) return null;
     const panelTogglePattern =
-      /显示\s*\/?\s*隐藏\s*(?:右侧栏|侧边栏|侧边面板)|切换\s*(?:右侧栏|侧边栏|侧边面板)|(?:show|hide|toggle)\s*(?:\/\s*(?:show|hide))?\s*(?:right\s*)?(?:sidebar|panel)/i;
+      /显示\s*\/?\s*隐藏\s*(?:右侧栏|右侧面板|侧边面板)|切换\s*(?:右侧栏|右侧面板|侧边面板)|(?:show|hide|toggle)\s*(?:\/\s*(?:show|hide))?\s*(?:right\s*)?(?:sidebar|side\s*panel|panel)/i;
     return getVisibleButtonInfo('button,[role="button"]')
       .filter(({ label, rect }) => {
         if (rect.x < window.innerWidth - 96 || rect.y > 72) return false;
+        if (/恢复.*面板宽度|面板宽度|展开\s*(?:右侧)?面板|折叠\s*(?:右侧)?面板|打开侧边面板标签页|新建侧边面板|底部面板|bottom\s*panel/i.test(label)) return false;
         return panelTogglePattern.test(label);
       })
       .sort((a, b) => b.rect.x - a.rect.x || a.rect.y - b.rect.y)[0]?.button || null;
@@ -1255,14 +1256,15 @@
 
   function isRightPanelOpen() {
     if (!isCodexShellDocument()) return false;
+    const toggle = findRightPanelToggle();
+    const toggleLabel = buttonLabel(toggle);
+    if (/恢复.*面板宽度|面板宽度|展开\s*(?:右侧)?面板|expand\s*(?:right\s*)?panel/i.test(toggleLabel)) return false;
     if (
       findRightPanelTabControllers().some((controller) => isVisible(controller)) ||
-      isVisible(document.querySelector('[data-app-shell-tab-strip-controller="right"]')) ||
       isRightPanelToolChooserVisible()
     ) {
       return true;
     }
-    const toggle = findRightPanelToggle();
     if (!toggle) return false;
     return toggle.getAttribute("aria-pressed") === "true";
   }
@@ -1804,8 +1806,8 @@
       return false;
     }
 
-    const toggle = findRightPanelToggle();
-    if (!toggle) {
+    const openControl = findRightPanelToggle() || findAddSidePanelTabButton();
+    if (!openControl) {
       setStatus("未找到按钮", "warn");
       return false;
     }
@@ -1815,7 +1817,7 @@
     state.panelCommand = "open";
     state.panelCommandUntil = now + PANEL_COMMAND_TIMEOUT_MS;
     setStatus("正在打开右侧栏...", "busy");
-    activateElement(toggle);
+    activateElement(openControl);
 
     window.setTimeout(() => {
       if (isRightPanelOpen()) {
