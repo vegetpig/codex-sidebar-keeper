@@ -131,6 +131,7 @@
     currentChatRetryActive: false,
     currentChatRetryStartedAt: 0,
     currentChatRetryAttempts: 0,
+    userRouteNavigationUntil: 0,
     startupHoldUntil: 0,
     lastReason: "started",
     lastActionAt: 0,
@@ -264,6 +265,7 @@
 
   function restoreRouteSnapshot(snapshot, reason = "restore-route") {
     if (!snapshot?.threadKey || snapshot.threadKey === "default") return false;
+    if (Date.now() < state.userRouteNavigationUntil) return false;
 
     const selectedKey = getSelectedThreadKey();
     if (selectedKey === snapshot.threadKey && location.href === snapshot.href) return false;
@@ -282,6 +284,25 @@
     [80, 220, 520, 1000].forEach((delay) => {
       window.setTimeout(() => restoreRouteSnapshot(snapshot, `${reason}-${delay}`), delay);
     });
+  }
+
+  function markUserRouteNavigation(reason = "user-route-navigation") {
+    state.userRouteNavigationUntil = Date.now() + 1800;
+    state.lastReason = reason;
+  }
+
+  function isNewConversationControl(element) {
+    const action = element?.closest?.('button,[role="button"],a,[aria-label],[title]');
+    if (!action || state.root?.contains(action)) return false;
+    const label = buttonLabel(action);
+    const attrs = [
+      action.getAttribute?.("aria-label"),
+      action.getAttribute?.("title"),
+      action.getAttribute?.("data-testid"),
+      action.getAttribute?.("href"),
+      action.className,
+    ].filter(Boolean).join(" ");
+    return /(?:新建|新的|新增|开始|创建)\s*(?:对话|聊天|会话)|(?:new|start|create)\s*(?:chat|conversation|thread)/i.test(`${label} ${attrs}`);
   }
 
   function readBrowserSettingsForThread(threadKey = getCurrentThreadKey(), options = {}) {
@@ -2909,6 +2930,9 @@
     }
     state.threadClickHandler = (event) => {
       const threadRow = event.target?.closest?.("[data-app-action-sidebar-thread-id]");
+      if (event.isTrusted && (threadRow || isNewConversationControl(event.target))) {
+        markUserRouteNavigation(threadRow ? "user-thread-click" : "user-new-conversation");
+      }
       if (threadRow) {
         state.currentThreadKey = threadKeyFromElement(threadRow) || state.currentThreadKey;
         window.setTimeout(() => refreshBrowserSettingsForThread(), 120);
