@@ -1,9 +1,9 @@
-# Script Market Package
+# 脚本包
 
-This directory contains the local script index files for Codex Sidebar Keeper.
+这里放的是 Sidebar Keeper 的脚本索引和脚本文件。
 
-- `scripts/codex-sidebar-keeper.js` is the browser userscript payload.
-- `index-entry.json` is the standalone script entry.
-- `index.json` is the script list containing the same entry and checksum.
+- `scripts/codex-sidebar-keeper.js`：实际运行的脚本。
+- `index-entry.json`：单条脚本信息。
+- `index.json`：包含校验值的脚本列表。
 
-The package is intentionally generic and does not include machine-specific paths, accounts, or screenshots.
+这些文件不依赖本机路径，也不包含截图。
