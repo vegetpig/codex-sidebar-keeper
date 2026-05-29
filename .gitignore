@@ -1,0 +1,20 @@
+# Local/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs and temporary output
+*.log
+*.tmp
+tmp/
+temp/
+
+# Dependency folders if local tooling is added later
+node_modules/
+.venv/
+venv/
+
+# Codex local runtime/cache data should not be committed
+.codex/
+.agents/

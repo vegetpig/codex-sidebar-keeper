@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "updated_at": "2026-05-29T09:12:04Z",
+  "scripts": [
+    {
+      "id": "codex-sidebar-keeper",
+      "name": "Codex Sidebar Keeper",
+      "description": "保持 Codex Desktop 右侧工作面板打开；支持只打开、侧边聊天、浏览器、终端，以及一次只保留一个右侧标签。",
+      "version": "1.0.0",
+      "author": "vegetpig",
+      "tags": [
+        "codex",
+        "sidebar",
+        "panel",
+        "ui"
+      ],
+      "homepage": "https://github.com/vegetpig/codex-sidebar-keeper",
+      "script_url": "https://raw.githubusercontent.com/vegetpig/codex-sidebar-keeper/main/market/scripts/codex-sidebar-keeper.js",
+      "sha256": "abe04608902be5adeeb57bfa510389600da32cbd5a0ebe5161f65f38b2c1b12d"
+    }
+  ]
+}
