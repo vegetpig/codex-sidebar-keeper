@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="430" viewBox="0 0 960 430" role="img" aria-labelledby="title desc">
-  <title id="title">Browser URL selection flow</title>
-  <desc id="desc">The first browser open uses the current chat fallback, then remembers the selected page.</desc>
+  <title id="title">浏览器网址选择流程</title>
+  <desc id="desc">首次打开浏览器时使用此聊天网址作为兜底，用户选择网页后按对话记住。</desc>
   <rect width="960" height="430" rx="20" fill="#f8fafc"/>
   <text x="480" y="54" text-anchor="middle" fill="#0f172a" font-family="system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="28" font-weight="750">浏览器网址选择逻辑</text>
   <g font-family="system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif">
@@ -18,7 +18,7 @@
       <rect width="220" height="210" rx="14" fill="#ffffff" stroke="#dbe4ef"/>
       <text x="110" y="44" text-anchor="middle" fill="#0f172a" font-size="22" font-weight="700">用户选择</text>
       <rect x="26" y="74" width="168" height="44" rx="8" fill="#0d9488"/>
-      <text x="110" y="102" text-anchor="middle" fill="#ffffff" font-size="17">Project Preview</text>
+      <text x="110" y="102" text-anchor="middle" fill="#ffffff" font-size="17">项目预览页</text>
       <text x="110" y="148" text-anchor="middle" fill="#64748b" font-size="15">优先显示标题</text>
       <text x="110" y="176" text-anchor="middle" fill="#64748b" font-size="15">保存到当前对话</text>
     </g>

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="640" viewBox="0 0 960 640" role="img" aria-labelledby="title desc">
-  <title id="title">Sidebar Keeper settings panel</title>
-  <desc id="desc">A dark Sidebar Keeper settings panel with toggles, target buttons, and a status row.</desc>
+  <title id="title">Sidebar Keeper 设置面板</title>
+  <desc id="desc">一个深色的 Sidebar Keeper 设置面板，包含开关、目标按钮和状态提示。</desc>
   <rect width="960" height="640" rx="22" fill="#f6f8fb"/>
   <g transform="translate(235 54)">
     <rect width="490" height="532" rx="22" fill="#202124"/>
