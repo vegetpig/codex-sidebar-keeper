@@ -1772,7 +1772,7 @@
       now < state.startupHoldUntil &&
       !/toggle-auto|target-change|manual|startup-ready/.test(reason)
     ) {
-      setStatus("等待 Codex 启动...", "busy");
+      setStatus("等待界面就绪...", "busy");
       return false;
     }
 
@@ -3073,7 +3073,7 @@
         state.startupHoldUntil = 0;
         ensureRightPanel("startup-ready");
       } else {
-        setStatus("等待 Codex 启动...", "busy");
+        setStatus("等待界面就绪...", "busy");
         window.setTimeout(() => ensureRightPanel("startup-ready"), STARTUP_HOLD_MS);
       }
     } else {
