@@ -1,39 +1,39 @@
 ---
 name: codex-sidebar-keeper
-description: Use when the user wants Codex Desktop's right-side work panel/sidebar to stay open after switching conversations.
+description: 当用户希望 Codex Desktop 的右侧工作面板/侧边栏在切换对话后保持打开时使用。
 ---
 
 # Codex Sidebar Keeper
 
-The preferred implementation is the Codex++ user script in this repository:
+首选实现是本仓库里的 Codex++ 用户脚本：
 
 ```text
 market/scripts/codex-sidebar-keeper.js
 ```
 
-It adds a compact title-area entry that opens a Codex++-style settings panel with:
+它会在 Codex 标题栏添加一个紧凑的 `Sidebar Keeper` 控件，打开后可以设置：
 
-- `切换对话时保持打开`: automatically reopens Codex Desktop's right-side work panel when Codex hides it.
-- `一次只保留一个右侧标签`: closes extra right-panel tabs and restores the current main conversation if Codex briefly navigates away.
-- target picker: optionally prefers side chat, browser, or terminal after the panel opens.
-- `此聊天网址`: when browser is preferred, retries opening the current conversation's associated browser URL.
-- status feedback: shows busy/warn/ok states so slow panel switches do not look frozen.
+- `切换对话时保持打开`：Codex 隐藏右侧工作面板时自动重新打开。
+- `一次只保留一个右侧标签`：关闭多余的右侧标签，并在 Codex 短暂跳走时恢复当前主对话。
+- 打开后显示：可选择 `只打开`、`侧边聊天`、`浏览器` 或 `终端`。
+- `浏览器网址`：浏览器模式下可重试当前聊天网址，也可以使用预设或自定义网址。
+- 状态反馈：显示 busy/warn/ok 等状态，避免慢速切换时看起来像卡住。
 
-The script runs only in the Codex app shell, and identifies the right-side panel by its top-right toggle plus visible right-panel tab state. Embedded browser pages do not run sidebar automation.
+脚本只在 Codex 主应用界面运行，通过右上角右侧栏按钮和右侧标签状态识别工作面板。右侧栏里嵌入的网页不会运行这个自动化逻辑。
 
-## Validate
+## 验证
 
-Use the CDP helper from the plugin root to inspect the live script state:
+可以在插件根目录使用 CDP helper 查看当前运行状态：
 
 ```powershell
 .\scripts\Invoke-CodexCdp.ps1 -Port <debug-port> -Expression "window.__codexSidebarKeeper.getState()"
 ```
 
-Expected fields:
+常见期望字段：
 
 - `autoKeep: true`
 - `rightPanelOpen: true`
 - `toggleFound: true`
 - `docked: true`
 
-The older Windows hotkey helper scripts remain available only as a fallback.
+旧版 Windows 热键脚本只作为备用方案保留。

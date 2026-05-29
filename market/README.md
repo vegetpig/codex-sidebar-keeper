@@ -1,19 +1,19 @@
-# Codex++ Script Market Package
+# Codex++ 脚本市场包
 
-This folder mirrors the Codex++ Script Market layout for this repository.
+这个目录保留 Codex++ Script Market 风格的结构，方便以后发布或被其它脚本索引引用。
 
-To publish this script through a Codex++ script index, use:
+如果要把这个脚本加入某个 Codex++ 脚本索引，需要使用：
 
 - `scripts/codex-sidebar-keeper.js`
-- the object from `index-entry.json` in an index `scripts` array
+- `index-entry.json` 里的脚本条目
 
-For local installation, copy:
+本地安装时，把下面这个文件：
 
 ```text
 market/scripts/codex-sidebar-keeper.js
 ```
 
-to:
+复制到：
 
 ```text
 %APPDATA%\Codex++\user_scripts\codex-sidebar-keeper.js

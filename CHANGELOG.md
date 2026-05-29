@@ -1,9 +1,9 @@
-# Changelog
+# 更新日志
 
 ## 1.0.0
 
-- Keep Codex Desktop's right-side work panel open across conversation switches.
-- Add target modes for `只打开`, `侧边聊天`, `浏览器`, and `终端`.
-- Add single-right-tab cleanup with main conversation route protection.
-- Add browser URL handling for current chat, localhost presets, and custom URLs.
-- Add compact settings, status feedback, theme toggle, and pinned panel support.
+- 支持在切换对话后保持 Codex Desktop 右侧工作面板打开。
+- 增加 `只打开`、`侧边聊天`、`浏览器`、`终端` 四种目标模式。
+- 增加“一次只保留一个右侧标签”，并加入主对话路由保护。
+- 增加浏览器网址处理，支持当前聊天网址、localhost 预设和自定义网址。
+- 增加紧凑设置面板、状态反馈、主题切换和面板置顶。

@@ -104,6 +104,8 @@
     position: readPosition(),
     resizeHandler: null,
     threadClickHandler: null,
+    routePointerHandler: null,
+    routeKeyHandler: null,
     interval: 0,
     observer: null,
     pendingCheck: 0,
@@ -287,7 +289,7 @@
   }
 
   function markUserRouteNavigation(reason = "user-route-navigation") {
-    state.userRouteNavigationUntil = Date.now() + 1800;
+    state.userRouteNavigationUntil = Date.now() + 3000;
     state.lastReason = reason;
   }
 
@@ -303,6 +305,20 @@
       action.className,
     ].filter(Boolean).join(" ");
     return /(?:新建|新的|新增|开始|创建)\s*(?:对话|聊天|会话)|(?:new|start|create)\s*(?:chat|conversation|thread)/i.test(`${label} ${attrs}`);
+  }
+
+  function markUserRouteNavigationFromEvent(event, reasonPrefix = "user-route") {
+    if (!event?.isTrusted) return false;
+    const threadRow = event.target?.closest?.("[data-app-action-sidebar-thread-id]");
+    if (threadRow) {
+      markUserRouteNavigation(`${reasonPrefix}-thread`);
+      return true;
+    }
+    if (isNewConversationControl(event.target)) {
+      markUserRouteNavigation(`${reasonPrefix}-new-conversation`);
+      return true;
+    }
+    return false;
   }
 
   function readBrowserSettingsForThread(threadKey = getCurrentThreadKey(), options = {}) {
@@ -1851,11 +1867,10 @@
   }
 
   function keepOnlyPanelOpen(reason = "target-none") {
-    const routeSnapshot = captureRouteSnapshot();
-    watchRouteSnapshot(routeSnapshot, `${reason}-preserve-thread`);
-
-    const finish = () => {
-      restoreRouteSnapshot(routeSnapshot, `${reason}-finish`);
+    const finish = (routeSnapshot = null) => {
+      if (routeSnapshot) {
+        restoreRouteSnapshot(routeSnapshot, `${reason}-finish`);
+      }
       if (isRightPanelOpen()) {
         setStatus("只保持打开", "ok");
       } else {
@@ -1868,15 +1883,24 @@
         finish();
         return;
       }
+      const routeSnapshot = captureRouteSnapshot();
+      watchRouteSnapshot(routeSnapshot, `${reason}-preserve-thread`);
       ensureRightPanel(reason);
       window.setTimeout(() => {
         restoreRouteSnapshot(routeSnapshot, `${reason}-after-open-restore`);
-        closeOpenToolTabs(`${reason}-after-open`, finish);
+        closeOpenToolTabs(`${reason}-after-open`, () => finish(routeSnapshot));
       }, 360);
       return;
     }
 
-    closeOpenToolTabs(reason, finish);
+    if (!findRightPanelTabs().length) {
+      finish();
+      return;
+    }
+
+    const routeSnapshot = captureRouteSnapshot();
+    watchRouteSnapshot(routeSnapshot, `${reason}-preserve-thread`);
+    closeOpenToolTabs(reason, () => finish(routeSnapshot));
   }
 
   function setAutoKeep(value) {
@@ -2928,11 +2952,29 @@
     if (state.threadClickHandler) {
       document.removeEventListener("click", state.threadClickHandler, true);
     }
+    if (state.routePointerHandler) {
+      document.removeEventListener("pointerdown", state.routePointerHandler, true);
+    }
+    if (state.routeKeyHandler) {
+      document.removeEventListener("keydown", state.routeKeyHandler, true);
+    }
+    state.routePointerHandler = (event) => {
+      markUserRouteNavigationFromEvent(event, "user-pointer");
+    };
+    document.addEventListener("pointerdown", state.routePointerHandler, true);
+
+    state.routeKeyHandler = (event) => {
+      if (!event.isTrusted) return;
+      const key = String(event.key || "").toLowerCase();
+      if ((event.ctrlKey || event.metaKey) && key === "n") {
+        markUserRouteNavigation("user-keyboard-new-conversation");
+      }
+    };
+    document.addEventListener("keydown", state.routeKeyHandler, true);
+
     state.threadClickHandler = (event) => {
       const threadRow = event.target?.closest?.("[data-app-action-sidebar-thread-id]");
-      if (event.isTrusted && (threadRow || isNewConversationControl(event.target))) {
-        markUserRouteNavigation(threadRow ? "user-thread-click" : "user-new-conversation");
-      }
+      markUserRouteNavigationFromEvent(event, "user-click");
       if (threadRow) {
         state.currentThreadKey = threadKeyFromElement(threadRow) || state.currentThreadKey;
         window.setTimeout(() => refreshBrowserSettingsForThread(), 120);
@@ -2954,6 +2996,14 @@
     if (state.threadClickHandler) {
       document.removeEventListener("click", state.threadClickHandler, true);
       state.threadClickHandler = null;
+    }
+    if (state.routePointerHandler) {
+      document.removeEventListener("pointerdown", state.routePointerHandler, true);
+      state.routePointerHandler = null;
+    }
+    if (state.routeKeyHandler) {
+      document.removeEventListener("keydown", state.routeKeyHandler, true);
+      state.routeKeyHandler = null;
     }
     if (state.documentPointerHandler) {
       document.removeEventListener("pointerdown", state.documentPointerHandler, true);
