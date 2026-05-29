@@ -88,9 +88,11 @@ node --check .\market\scripts\codex-sidebar-keeper.js
 .\scripts\Invoke-CodexCdp.ps1 -Port <debug-port> -Expression "window.__codexSidebarKeeper.getState()"
 ```
 
-## 隐私
+## 数据
 
-仓库中的示意图是手工绘制的通用界面，不包含真实聊天内容、路径、账户或本机截图。插件状态和浏览器网址缓存都保存在本地浏览器环境中。
+README 里的图片只是为了说明界面效果，都是重新画的示意图，不是从真实使用界面截出来的。
+
+插件的开关状态和浏览器网址选择保存在 Codex 当前页面的本地存储里，不会主动上传。
 
 ## 许可证
 
