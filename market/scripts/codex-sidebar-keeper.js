@@ -369,7 +369,18 @@
     if (!clean) return true;
     if (clean.length > 60) return true;
     if (/^(?:输出|输入|本地|浏览器|此聊天|new page|无法访问此站点)$/i.test(clean)) return true;
-    return /(?:新建对话|自动拉回旧对话|PowerShell|了解新功能|安装最新|缓存命中|上下文|调用|耗时|cachebuster|token|terminal|shell)/i.test(clean);
+    return /(?:新建对话|自动拉回旧对话|PowerShell|了解新功能|安装最新|缓存命中|上下文|调用|耗时|cachebuster|token|terminal|shell|api\.github\.com|\/repos\/|\/releases\/|\/assets\/|\$\{?[\w.]+\}?)/i.test(clean);
+  }
+
+  function isRejectedBrowserOptionValue(value) {
+    const clean = displayBrowserUrl(value);
+    if (!clean) return true;
+    if (/[`"'<>\\]/.test(clean)) return true;
+    if (/\$\{?[\w.]+\}?|%24|%7b|%7d/i.test(clean)) return true;
+    if (/^(?:api\.github\.com|uploads\.github\.com)\b/i.test(clean)) return true;
+    if (/\/repos\/[^/]*\$|\/repos\/\$|\/releases\/tags\/\$|\/releases\/\$\{|\/assets\/\$\{/i.test(clean)) return true;
+    if (/(?:^|\/)(?:api|graphql|rest)(?:\/|$)/i.test(clean) && !/^(?:localhost|127\.0\.0\.1|\[::1\])/i.test(clean)) return true;
+    return false;
   }
 
   function shouldReplaceBrowserOptionLabel(existingLabel, candidateLabel, value) {
@@ -393,6 +404,7 @@
       const value = displayBrowserUrl(item?.value);
       const label = String(item?.label || "").trim() || value;
       if (!value) return;
+      if (isRejectedBrowserOptionValue(value)) return;
       if (isRejectedBrowserOptionLabel(label)) return;
       const key = value.toLowerCase();
       const existing = byValue.get(key);
@@ -420,6 +432,7 @@
       const value = displayBrowserUrl(item?.value);
       const label = String(item?.label || "").trim() || value;
       if (!value) return;
+      if (isRejectedBrowserOptionValue(value)) return;
       if (isRejectedBrowserOptionLabel(label)) return;
       const key = value.toLowerCase();
       const existing = byValue.get(key);
@@ -1352,6 +1365,7 @@
     ) || [];
     return matches
       .map((item) => item.trim().replace(/[，。；;,.]+$/, ""))
+      .filter((item) => !isRejectedBrowserOptionValue(item))
       .filter(Boolean);
   }
 
@@ -1448,6 +1462,7 @@
         const value = displayBrowserUrl(rawUrl);
         const key = value.toLowerCase();
         if (!value) continue;
+        if (isRejectedBrowserOptionValue(value)) continue;
         const optionText = browserOptionTextForElement(item.element, value);
         const label = titleForBrowserUrl(optionText, value);
         if (isRejectedBrowserOptionLabel(label)) continue;
@@ -1480,7 +1495,9 @@
       const value = displayBrowserUrl(item.value);
       const key = value.toLowerCase();
       if (!value) return;
+      if (isRejectedBrowserOptionValue(value)) return;
       const label = String(item.label || "").trim() || value;
+      if (isRejectedBrowserOptionLabel(label)) return;
       const existing = byValue.get(key);
       if (existing) {
         if (shouldReplaceBrowserOptionLabel(existing.label, label, value)) existing.label = label;
@@ -1497,10 +1514,13 @@
       state.browserUrl &&
       !merged.some((item) => item.value.toLowerCase() === displayBrowserUrl(state.browserUrl).toLowerCase())
     ) {
-      merged.push({
-        value: displayBrowserUrl(state.browserUrl),
-        label: displayBrowserUrl(state.browserUrl),
-      });
+      const selectedValue = displayBrowserUrl(state.browserUrl);
+      if (!isRejectedBrowserOptionValue(selectedValue)) {
+        merged.push({
+          value: selectedValue,
+          label: selectedValue,
+        });
+      }
     }
 
     const selectedAvailable = merged.some((item) =>

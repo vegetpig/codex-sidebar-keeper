@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-05-29T17:34:38Z",
+  "updated_at": "2026-05-30T03:03:25Z",
   "scripts": [
     {
       "id": "codex-sidebar-keeper",
@@ -16,7 +16,7 @@
       ],
       "homepage": "",
       "script_url": "scripts/codex-sidebar-keeper.js",
-      "sha256": "2554ef4dfede06d92fcd4e4b5140e003511bbcf6fd490dab561abd2697ff1d42"
+      "sha256": "b9bb59b954865ebc98ae41ec4847d33fdfd5d98c028ec027a3812df0d1379f05"
     }
   ]
 }
