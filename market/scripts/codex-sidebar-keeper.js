@@ -38,17 +38,17 @@
     none: { label: "只保持打开", pattern: null, tabPattern: null },
     sidechat: {
       label: "侧边聊天",
-      pattern: /侧边聊天\s*(?:发起侧边对话|尽管问)|side\s*chat/i,
-      tabPattern: /侧边聊天(?:\s*\d+)?|side\s*chat/i,
+      pattern: /侧边聊天|侧边对话|side\s*chat/i,
+      tabPattern: /侧边聊天(?:\s*\d+)?|侧边对话|side\s*chat/i,
     },
     browser: {
       label: "浏览器",
-      pattern: /浏览器\s*打开网站|browser/i,
+      pattern: /浏览器|打开网站|browser/i,
       tabPattern: /浏览器|browser/i,
     },
     terminal: {
       label: "终端",
-      pattern: /终端\s*启动交互式\s*shell|terminal|shell/i,
+      pattern: /终端|启动交互式\s*shell|terminal|shell/i,
       tabPattern: /终端|terminal|shell|powershell|cmd(?:\.exe)?/i,
     },
   };
@@ -830,15 +830,36 @@
     if (!option?.pattern) return null;
     const minPanelX = rightPanelMinX();
 
-    return getVisibleButtonInfo("button")
+    const isLikelyLaunchEntry = ({ button, label, rect }) => {
+      if (button.classList?.contains("codex-conversation-timeline-marker")) return false;
+      if (/^跳转到[:：]/.test(label) || /timeline/i.test(String(button.className || ""))) return false;
+      if (rect.x < minPanelX || rect.y < 70) return false;
+      if (rect.width < 64 || rect.height < 20 || rect.height > 220) return false;
+      if (label.length > 180) return false;
+      return option.pattern.test(label);
+    };
+
+    const rankLaunchEntry = (a, b) => {
+      const exact = (item) => item.label.trim().toLowerCase() === option.label.toLowerCase();
+      return Number(exact(b)) - Number(exact(a)) ||
+        Number(b.button.matches?.('[role="option"],[role="menuitem"]')) - Number(a.button.matches?.('[role="option"],[role="menuitem"]')) ||
+        a.rect.y - b.rect.y ||
+        a.rect.x - b.rect.x;
+    };
+
+    const semanticMatch = getVisibleButtonInfo('button,[role="button"],[role="option"],[role="menuitem"],a,[tabindex],[onclick]')
+      .filter(isLikelyLaunchEntry)
+      .sort(rankLaunchEntry)[0]?.button;
+    if (semanticMatch) return nearestActionElement(semanticMatch);
+
+    return getVisibleButtonInfo("div,span")
       .filter(({ button, label, rect }) => {
-        if (button.classList?.contains("codex-conversation-timeline-marker")) return false;
-        if (/^跳转到[:：]/.test(label) || /timeline/i.test(String(button.className || ""))) return false;
-        if (rect.x < minPanelX || rect.y < 120) return false;
-        if (rect.width < 120 || rect.height < 80) return false;
-        return option.pattern.test(label);
+        if (!isLikelyLaunchEntry({ button, label, rect })) return false;
+        return label.length <= 80;
       })
-      .sort((a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x)[0]?.button || null;
+      .sort(rankLaunchEntry)
+      .map((item) => nearestActionElement(item.button))
+      .find(Boolean) || null;
   }
 
   function findToolTabButton(tool) {
@@ -2079,6 +2100,7 @@
       activateElement(addButton);
       window.setTimeout(() => ensurePreferredTool(`${reason}-after-add-tab`), 260);
       window.setTimeout(() => ensurePreferredTool(`${reason}-after-add-tab-followup`), 720);
+      window.setTimeout(() => ensurePreferredTool(`${reason}-after-add-tab-final`), 1300);
       return true;
     }
 
