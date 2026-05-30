@@ -1,6 +1,6 @@
 # 脚本包
 
-这里放的是 Sidebar Keeper 的脚本索引和脚本文件。
+该目录包含 Sidebar Keeper 的脚本索引和脚本文件。
 
 - `scripts/codex-sidebar-keeper.js`：实际运行的脚本。
 - `index-entry.json`：单条脚本信息。
